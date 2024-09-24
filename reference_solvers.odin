@@ -8,7 +8,7 @@ reference_jacobi :: proc(phi, f: ^Grid, boundary: Boundary_proc, should_iter: Sh
 	phi_a := phi
 	phi_b := second_phi
 
-	boundary(phi)
+	boundary(phi_a)
 	i := 0
 	for ;should_iter(phi_a, i); i += 1 {
 		#no_bounds_check for row in 1..<gsy-1 do for col in 1..<gsx-1 {
@@ -42,7 +42,7 @@ reference_gauss_seidel :: proc(phi, f: ^Grid, boundary: Boundary_proc, should_it
 }
 
 reference_successive_overrelaxation :: proc(phi, f: ^Grid, boundary: Boundary_proc, should_iter: Should_iter_proc) -> int {
-	relaxation_factor_a :: float(2 - 2*math.PI/float(max(gsx, gsy)))
+	relaxation_factor_a :: float(2 - tau/float(max(gsx, gsy)))
 	relaxation_factor_b :: 1 - relaxation_factor_a
 
 	boundary(phi)
