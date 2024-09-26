@@ -13,7 +13,7 @@ settable_iter_condition :: proc(phi: ^Grid, i: int) -> bool {
 conv_prev_phi: ^Grid
 conv_first := true
 convergence_iter_condition :: proc(phi: ^Grid, i: int) -> bool {
-	err_target :: 1e-9
+	err_target :: 1e-6
 	iteration_limit :: 10_000_000
 	if conv_first {
 		conv_prev_phi = new(Grid) if conv_prev_phi == nil else conv_prev_phi

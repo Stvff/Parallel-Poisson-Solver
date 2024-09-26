@@ -36,7 +36,7 @@ linear_rgb_image :: proc(name: string, grid: ^Grid) {
 }
 
 gridlines_image :: proc(name: string, grid: ^Grid, boundary: Boundary_proc, iter_condition: Should_iter_proc) {
-	frequency :float: 15
+	frequency :float: 30
 
 	image_data := new([gsy][gsx][4]u8)
 	L_field := new(Grid)
@@ -47,7 +47,7 @@ gridlines_image :: proc(name: string, grid: ^Grid, boundary: Boundary_proc, iter
 		free(L_field)
 	}
 	now := time.now()
-	iters := reference_successive_overrelaxation(L_field, lapl_of_L, boundary, iter_condition)
+	iters := kernel_solver_family(L_field, lapl_of_L, boundary, iter_condition)
 	fmt.printf("the L field took %.3f seconds and %v iterations\n", time.duration_seconds(time.since(now)), iters)
 
 	minv := max(float)
@@ -63,12 +63,58 @@ gridlines_image :: proc(name: string, grid: ^Grid, boundary: Boundary_proc, iter
 	for row in 0..<gsy do for col in 0..<gsx {
 		scaleV := (grid[row][col]-minv)/(maxv-minv)
 		scaleL := (L_field[row][col]-minL)/(maxL-minL)
-		scaleV = 1 if abs(0.5 - frequency*math.mod(scaleV, 1/frequency)) < 0.05 else 0
-		scaleL = 1 if abs(0.5 - frequency*math.mod(scaleL, 1/frequency)) < 0.05 else 0
+		clr := 0 if abs(0.5 - frequency*math.mod(scaleV, 1/frequency)) < 0.05 ||\
+		            abs(0.5 - frequency*math.mod(scaleL, 1/frequency)) < 0.05 else 1
+//		scaleV = 0 if abs(0.5 - frequency*math.mod(scaleV, 1/frequency)) < 0.1 else 1
+//		scaleL = 0 if abs(0.5 - frequency*math.mod(scaleL, 1/frequency)) < 0.1 else 1
 	//	scaleV = 0.5 + 0.5*math.cos(tau*frequency*scaleV)
 	//	scaleL = 0.5 + 0.5*math.cos(tau*frequency*scaleL)
 
-		image_data[row][col].rgb = u8( 255*min(1, scaleV + scaleL) )
+		image_data[row][col].rgb = u8( 255*clr )
+		image_data[row][col].a = 255
+	}
+	image.write_png(transmute(cstring)raw_data(name), gsx, gsy, 4, image_data, size_of(image_data[0]))
+}
+
+gridlines_with_background_image :: proc(name: string, grid: ^Grid, boundary: Boundary_proc, iter_condition: Should_iter_proc) {
+	frequency :float: 30
+	threshold :: 0.08
+
+	image_data := new([gsy][gsx][4]u8)
+	L_field := new(Grid)
+	lapl_of_L := div_of_T(grid)
+	defer {
+		free(image_data)
+		free(lapl_of_L)
+		free(L_field)
+	}
+	now := time.now()
+	iters := kernel_solver_family(L_field, lapl_of_L, boundary, iter_condition)
+	fmt.printf("the L field took %.3f seconds and %v iterations\n", time.duration_seconds(time.since(now)), iters)
+
+	minv := max(float)
+	maxv := min(float)
+	minL := max(float)
+	maxL := min(float)
+	for &row, y in grid do for value, x in row {
+		maxv = max(value, maxv)
+		minv = min(value, minv)
+		maxL = max(L_field[y][x], maxL)
+		minL = min(L_field[y][x], minL)
+	}
+	for row in 0..<gsy do for col in 0..<gsx {
+		scaleV := (grid[row][col]-minv)/(maxv-minv)
+		scaleL := (L_field[row][col]-minL)/(maxL-minL)
+		scaleV = abs(0.5 - frequency*math.mod(scaleV, 1/frequency))
+		scaleL = abs(0.5 - frequency*math.mod(scaleL, 1/frequency))
+		clr := 1.0 if scaleV < threshold ||\
+		            scaleL < threshold else 0.0
+		if clr == 0.0 {
+			scale := (grid[row][col]-minv)/(maxv-minv)
+			image_data[row][col].rgb = color_map(scale)
+		} else {
+			image_data[row][col].rgb = u8( 255*(1-min(scaleL, scaleV)/threshold) )
+		}
 		image_data[row][col].a = 255
 	}
 	image.write_png(transmute(cstring)raw_data(name), gsx, gsy, 4, image_data, size_of(image_data[0]))
